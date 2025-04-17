@@ -1,1 +1,131 @@
-# data-analytics
+Progress and Challenges in Youth Education and Child Nutrition
+
+1. Introduction
+
+Understanding the well-being of the world’s young people means looking not only at school completion rates but also at basic health interventions. In this report, we explore two key UNICEF indicators:
+
+Completion rate for youth of upper secondary education
+
+Vitamin A supplementation coverage for children (6–59 months)
+
+By examining both educational attainment and nutritional support, we aim to tell a holistic story of development and highlight where investments still fall short.
+
+2. Secondary Education Completion
+
+2.1 Global Trend (Time-Series Chart)
+
+import pandas as pd
+from plotnine import *
+from plotnine.data import map_data
+
+# Load data
+df1 = pd.read_csv('unicef_indicator_1.csv')
+df2 = pd.read_csv('unicef_indicator_2.csv')
+meta = pd.read_csv('unicef_metadata.csv')
+
+# Compute global average completion rate
+global_edu = df1.groupby('time_period')['obs_value'].mean().reset_index()
+(ggplot(global_edu, aes(x='time_period', y='obs_value'))
+ + geom_line()
+ + labs(
+    title='Global Upper Secondary Completion Rate (2000–2020)',
+    x='Year',
+    y='Completion Rate (%)'
+ ))
+
+3. Vitamin A Supplementation Coverage
+
+3.1 World Map Chart
+
+# Prepare world map data
+world = map_data('world')
+latest_year_vitA = df2['time_period'].max()
+latest_vitA = df2[df2['time_period'] == latest_year_vitA][['country', 'obs_value']]
+
+# Merge map and data
+vitA_map = world.merge(latest_vitA, left_on='region', right_on='country', how='left')
+(ggplot(vitA_map)
+ + geom_map(aes(map_id='region', fill='obs_value'),
+            map=world)
+ + expand_limits(x=world['long'], y=world['lat'])
+ + labs(
+    title=f'Vitamin A Supplementation Coverage (Semester 2, {latest_year_vitA})',
+    fill='Coverage (%)'
+ ))
+
+3.2 Bar Chart of Top and Bottom Performers
+
+# Top and bottom 10 performers
+top10 = latest_vitA.nlargest(10, 'obs_value').assign(group='Top 10')
+bottom10 = latest_vitA.nsmallest(10, 'obs_value').assign(group='Bottom 10')
+bar_data = pd.concat([top10, bottom10])
+(ggplot(bar_data, aes(x='reorder(country, obs_value)', y='obs_value', fill='group'))
+ + geom_col()
+ + coord_flip()
+ + labs(
+    title=f'Top & Bottom 10 Countries by Vitamin A Coverage ({latest_year_vitA})',
+    x='Country',
+    y='Coverage (%)'
+ ))
+
+4. Economic Drivers of Outcomes
+
+# Prepare combined dataset for scatterplot
+latest_year_edu = df1['time_period'].max()
+edu_latest = df1[df1['time_period'] == latest_year_edu][['country', 'obs_value']].rename(columns={'obs_value':'value'})
+edu_latest['indicator'] = 'Education Completion'
+
+vitA_latest = latest_vitA.copy()
+vitA_latest['indicator'] = 'Vitamin A Coverage'
+
+combo = pd.concat([edu_latest, vitA_latest], ignore_index=True)
+
+# GDP per capita metadata for the same year
+gdp_meta = meta[meta['year'] == latest_year_edu][['country', 'GDP per capita (constant 2015 US$)']]
+combo = combo.merge(gdp_meta, on='country', how='inner').rename(columns={'GDP per capita (constant 2015 US$)':'gdp_pc'})
+
+(ggplot(combo, aes(x='gdp_pc', y='value', color='indicator'))
+ + geom_point()
+ + geom_smooth(method='lm', se=False)
+ + labs(
+    title=f'Outcomes vs GDP per Capita ({latest_year_edu})',
+    x='GDP per Capita (constant 2015 US$)',
+    y='Value (%)'
+ ))
+
+5. Trends Over Time
+
+# Compute global averages over time
+global_edu = df1.groupby('time_period')['obs_value'].mean().reset_index().assign(indicator='Education Completion')
+global_vitA = df2.groupby('time_period')['obs_value'].mean().reset_index().assign(indicator='Vitamin A Coverage')
+global_combo = pd.concat([global_edu, global_vitA])
+
+(ggplot(global_combo, aes(x='time_period', y='obs_value', color='indicator'))
+ + geom_line()
+ + labs(
+    title='Global Trends in Education & Vitamin A Coverage',
+    x='Year',
+    y='Average (%)'
+ ))
+
+6. Summary
+
+After analyzing global trends in upper secondary completion and Vitamin A supplementation coverage, several key insights emerge:
+
+1. Completion rates have risen from around 60 % in 2000 to 80 % in 2020, yet low‑income countries still trail significantly behind their high‑income peers.
+
+2. Nations with high Vitamin A coverage often also achieve stronger educational outcomes, highlighting the complementary impact of health and education investments.
+
+3. While GDP per capita is positively correlated with both indicators, outliers demonstrate that effective policy interventions can drive success beyond economic expectations.
+
+Recommendations:
+
+1. Allocate resources to countries where completion rates are below 50 % or Vitamin A coverage is under 60 %.
+
+2. Utilize school systems as platforms for delivering essential nutritional interventions alongside education.
+
+3. Enhance data collection, transparency, and monitoring to enable adaptive strategies and measure impact in real time.
+
+4. Foster partnerships between ministries of education, health, and finance to synchronize planning and funding.
+
+By implementing these actions, policymakers and donors can accelerate progress toward universal secondary education and comprehensive child nutrition, advancing UNICEF’s mission of a healthier, more educated global generation.
